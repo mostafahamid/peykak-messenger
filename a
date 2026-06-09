@@ -24,14 +24,14 @@ export default {
         
         if (user1 && user2) {
           if (since) {
-            query += "((sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)) AND id > ? ORDER BY created_at ASC LIMIT 200";
+            query += "((sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)) AND id > ? ORDER BY id ASC LIMIT 100";
             params = [user1, user2, user2, user1, since];
           } else {
-            query += "(sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?) ORDER BY created_at ASC LIMIT 200";
+            query = "SELECT * FROM (SELECT * FROM messages WHERE is_deleted = 0 AND ((sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)) ORDER BY id DESC LIMIT 100) ORDER BY id ASC";
             params = [user1, user2, user2, user1];
           }
         } else {
-          query += "1=1 ORDER BY created_at ASC LIMIT 200";
+          query = "SELECT * FROM (SELECT * FROM messages WHERE is_deleted = 0 ORDER BY id DESC LIMIT 100) ORDER BY id ASC";
         }
         
         const result = await env.DB.prepare(query).bind(...params).all();
@@ -267,7 +267,7 @@ export default {
             `SELECT text, image_data, created_at, sender 
              FROM messages 
              WHERE ((sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)) AND is_deleted = 0 
-             ORDER BY created_at DESC LIMIT 1`
+             ORDER BY id DESC LIMIT 1`
           ).bind(currentUser, user.username, user.username, currentUser).first();
           
           user.last_message = lastMsg ? {
@@ -299,7 +299,7 @@ export default {
           await Promise.all(users.map(async u => {
             try {
               const msg = await env.DB.prepare(
-                "SELECT created_at FROM messages WHERE ((sender=? AND receiver=?) OR (sender=? AND receiver=?)) AND is_deleted=0 ORDER BY created_at DESC LIMIT 1"
+                "SELECT created_at FROM messages WHERE ((sender=? AND receiver=?) OR (sender=? AND receiver=?)) AND is_deleted=0 ORDER BY id DESC LIMIT 1"
               ).bind(currentUser, u.username, u.username, currentUser).first();
               u.last_message_at = msg ? msg.created_at : null;
             } catch(_) { u.last_message_at = null; }
@@ -347,10 +347,10 @@ export default {
         const since = url.searchParams.get('since');
         let query, params;
         if (since) {
-          query = "SELECT * FROM group_messages WHERE is_deleted = 0 AND id > ? ORDER BY created_at ASC LIMIT 200";
+          query = "SELECT * FROM group_messages WHERE is_deleted = 0 AND id > ? ORDER BY id ASC LIMIT 100";
           params = [since];
         } else {
-          query = "SELECT * FROM group_messages WHERE is_deleted = 0 ORDER BY created_at ASC LIMIT 200";
+          query = "SELECT * FROM (SELECT * FROM group_messages WHERE is_deleted = 0 ORDER BY id DESC LIMIT 100) ORDER BY id ASC";
           params = [];
         }
         const result = await env.DB.prepare(query).bind(...params).all();
@@ -487,10 +487,10 @@ export default {
         let query, params;
         
         if (since && since !== '0') {
-          query = "SELECT * FROM channel_messages WHERE channel_name = ? AND is_deleted = 0 AND id > ? ORDER BY created_at ASC LIMIT 100";
+          query = "SELECT * FROM channel_messages WHERE channel_name = ? AND is_deleted = 0 AND id > ? ORDER BY id ASC LIMIT 100";
           params = [channelName, parseInt(since)];
         } else {
-          query = "SELECT * FROM channel_messages WHERE channel_name = ? AND is_deleted = 0 ORDER BY created_at ASC LIMIT 100";
+          query = "SELECT * FROM (SELECT * FROM channel_messages WHERE channel_name = ? AND is_deleted = 0 ORDER BY id DESC LIMIT 100) ORDER BY id ASC";
           params = [channelName];
         }
         
@@ -515,8 +515,14 @@ export default {
           })));
         }
         
+        if (since && since !== '0') {
+          return new Response(JSON.stringify(messages), { 
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+        
         const finalResult = await env.DB.prepare(
-          "SELECT * FROM channel_messages WHERE channel_name = ? AND is_deleted = 0 ORDER BY created_at ASC LIMIT 100"
+          "SELECT * FROM (SELECT * FROM channel_messages WHERE channel_name = ? AND is_deleted = 0 ORDER BY id DESC LIMIT 100) ORDER BY id ASC"
         ).bind(channelName).all();
         
         return new Response(JSON.stringify(finalResult.results), { 
@@ -656,10 +662,10 @@ export default {
         const since = url.searchParams.get('since');
         let query, params;
         if (since) {
-          query = "SELECT * FROM posts WHERE is_deleted = 0 AND id > ? ORDER BY created_at DESC LIMIT 50";
+          query = "SELECT * FROM posts WHERE is_deleted = 0 AND id > ? ORDER BY id DESC LIMIT 50";
           params = [since];
         } else {
-          query = "SELECT * FROM posts WHERE is_deleted = 0 ORDER BY created_at DESC LIMIT 50";
+          query = "SELECT * FROM posts WHERE is_deleted = 0 ORDER BY id DESC LIMIT 50";
           params = [];
         }
         const result = await env.DB.prepare(query).bind(...params).all();
@@ -773,7 +779,7 @@ export default {
       try {
         const postId = url.searchParams.get('post_id');
         const result = await env.DB.prepare(
-          "SELECT * FROM post_comments WHERE post_id = ? AND is_deleted = 0 ORDER BY created_at ASC"
+          "SELECT * FROM post_comments WHERE post_id = ? AND is_deleted = 0 ORDER BY id ASC"
         ).bind(postId).all();
         return new Response(JSON.stringify(result.results), { headers: { "Content-Type": "application/json" } });
       } catch (error) {
@@ -996,6 +1002,12 @@ async function initDB(env) {
     try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_post_likes ON post_likes(post_id, username)").run(); } catch (_) {}
     try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_post_comments ON post_comments(post_id)").run(); } catch (_) {}
     try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_post_views ON post_views(post_id, username)").run(); } catch (_) {}
+    try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_messages_chat_fast ON messages(sender, receiver, is_deleted, id)").run(); } catch (_) {}
+    try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_messages_receiver_sender_fast ON messages(receiver, sender, is_deleted, id)").run(); } catch (_) {}
+    try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_group_messages_fast ON group_messages(is_deleted, id)").run(); } catch (_) {}
+    try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_channel_messages_fast ON channel_messages(channel_name, is_deleted, id)").run(); } catch (_) {}
+    try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_posts_fast ON posts(is_deleted, id)").run(); } catch (_) {}
+    try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_post_comments_fast ON post_comments(post_id, is_deleted, id)").run(); } catch (_) {}
     try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_msg_sender_receiver ON messages(sender, receiver)").run(); } catch (_) {}
     try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_msg_deleted ON messages(is_deleted)").run(); } catch (_) {}
     try { await env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_msg_id ON messages(id)").run(); } catch (_) {}
@@ -1380,6 +1392,11 @@ function getHTML() {
         .settings-item.danger-item { border-color: rgba(244,67,54,0.35); background: rgba(244,67,54,0.06); }
         .danger-text { color: #f44336 !important; }
         .settings-item.admin-item { border-color: rgba(229,57,53,0.35); background: rgba(229,57,53,0.06); }
+        .notif-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+        .notif-status-badge { font-size:11px; font-weight:700; padding:4px 9px; border-radius:999px; flex-shrink:0; }
+        .notif-status-badge.on { background:rgba(76,175,80,0.14); color:#4caf50; border:1px solid rgba(76,175,80,0.35); }
+        .notif-status-badge.off { background:rgba(244,67,54,0.10); color:#f44336; border:1px solid rgba(244,67,54,0.28); }
+        .notif-action-text { font-size:11px; color:#667eea; margin-top:6px; font-weight:700; }
         .settings-item button { cursor: pointer; }
         .settings-item input, .settings-item textarea { outline: none; }
         .settings-item input:focus, .settings-item textarea:focus { border-color: #667eea !important; }
@@ -2516,6 +2533,17 @@ function getHTML() {
                 if (typeof window[sendFnName] === 'function') window[sendFnName]();
             }
         }
+        function smartPoll(fn, activeMs = 2000, hiddenMs = 15000) {
+            let lastRun = 0;
+            return setInterval(() => {
+                const now = Date.now();
+                const interval = document.hidden ? hiddenMs : activeMs;
+                if (now - lastRun >= interval) {
+                    lastRun = now;
+                    fn();
+                }
+            }, 1000);
+        }
         function isOnline(lastSeen) {
             if (!lastSeen) return false;
             const tehranLastSeen = toTehranTime(lastSeen);
@@ -2589,34 +2617,66 @@ function getStatusText(lastSeen) {
             } catch(e) {}
         }
         
-        async function requestNotificationPermission() {
+        function isNotificationsEnabled() {
             if (!('Notification' in window)) return false;
-            const permission = await Notification.requestPermission();
-            notificationPermission = permission === 'granted';
-            if (notificationPermission) localStorage.setItem('notificationEnabled', 'true');
-            return notificationPermission;
+            return localStorage.getItem('notificationEnabled') === 'true' && Notification.permission === 'granted';
         }
         
-        window.enableNotifications = async function() {
+        function setNotificationsEnabled(enabled) {
+            localStorage.setItem('notificationEnabled', enabled ? 'true' : 'false');
+            notificationPermission = !!enabled && ('Notification' in window) && Notification.permission === 'granted';
+        }
+        
+        async function requestNotificationPermission() {
+            if (!('Notification' in window)) return false;
+            if (Notification.permission === 'granted') {
+                setNotificationsEnabled(true);
+                return true;
+            }
+            if (Notification.permission === 'denied') {
+                setNotificationsEnabled(false);
+                return false;
+            }
+            const permission = await Notification.requestPermission();
+            const ok = permission === 'granted';
+            setNotificationsEnabled(ok);
+            return ok;
+        }
+        
+        window.toggleNotifications = async function() {
             const L = t();
+            const currentlyOn = isNotificationsEnabled();
+            if (currentlyOn) {
+                setNotificationsEnabled(false);
+                showToast('🔕', currentLang === 'fa' ? 'اعلان‌ها غیرفعال شد' : 'Notifications disabled', null);
+                showSettings();
+                return;
+            }
             try {
                 const ok = await requestNotificationPermission();
                 if (ok) {
                     showToast('🔔', L.notifGranted, null);
+                    showSettings();
                 } else {
                     alert(L.notifDenied);
+                    showSettings();
                 }
             } catch(e) {
+                setNotificationsEnabled(false);
                 alert(L.notifDenied);
+                showSettings();
             }
         }
+        
+        window.enableNotifications = window.toggleNotifications;
         
         let toastTimeout = null;
         function sendNotification(title, body, onClick, channelName = null) {
             if (channelName && mutedChannels[channelName]) {
                 return;
             }
-            if (notificationPermission && document.hidden) {
+            if (!isNotificationsEnabled()) return;
+            if (document.hidden) {
                 try {
                     const n = new Notification(title, { body, icon: '💬', tag: 'peykak-message', renotify: true, silent: false });
                     if (onClick) n.onclick = () => { window.focus(); onClick(); n.close(); };
@@ -2737,7 +2797,7 @@ function getStatusText(lastSeen) {
                     updateLastSeen();
                     if (lastSeenInterval) clearInterval(lastSeenInterval);
                     lastSeenInterval = setInterval(updateLastSeen, 30000);
-                    if (localStorage.getItem('notificationEnabled') === 'true') notificationPermission = true;
+                    notificationPermission = isNotificationsEnabled();
                     showUsersList();
                 } else { document.getElementById('errorMsg').innerText = data.error; }
             } catch(e) { document.getElementById('errorMsg').innerText = L.serverError; }
@@ -2986,6 +3046,10 @@ function getStatusText(lastSeen) {
             const myAvatar = avatarHtml(currentUser.avatar || null, currentUser.name, 'large');
             const myBio = escapeHtml(currentUser.bio || '');
             const isAdmin = currentUser.username === 'mostafa';
+            const notifOn = isNotificationsEnabled();
+            const notifStatusText = notifOn ? (currentLang === 'fa' ? 'فعال' : 'Active') : (currentLang === 'fa' ? 'غیرفعال' : 'Inactive');
+            const notifActionText = notifOn ? (currentLang === 'fa' ? 'برای غیرفعال کردن کلیک کنید' : 'Click to disable') : (currentLang === 'fa' ? 'برای فعال کردن کلیک کنید' : 'Click to enable');
+            const notifTitleText = notifOn ? (currentLang === 'fa' ? '🔔 اعلان‌ها فعال است' : '🔔 Notifications are enabled') : L.notifications;
             document.getElementById('app').innerHTML = \`
                 <div class="header settings-header">
                     <div style="display:flex;align-items:center;gap:10px;">
@@ -3020,9 +3084,13 @@ function getStatusText(lastSeen) {
                             </div>
                             <div id="displayNameMsg" class="success" style="display:none;margin-top:6px;"></div>
                         </div>
-                        <button type="button" class="settings-item" onclick="enableNotifications()">
-                            <div class="settings-item-title">\${L.notifications}</div>
+                        <button type="button" class="settings-item" onclick="toggleNotifications()">
+                            <div class="notif-row">
+                                <div class="settings-item-title">\${notifTitleText}</div>
+                                <span class="notif-status-badge \${notifOn ? 'on' : 'off'}">\${notifStatusText}</span>
+                            </div>
                             <div class="settings-item-desc">\${L.notificationsDesc}</div>
+                            <div class="notif-action-text">\${notifActionText}</div>
                         </button>
                         <button type="button" class="settings-item" onclick="showLangPicker()">
                             <div class="settings-item-title">\${L.language}</div>
@@ -3289,7 +3357,7 @@ function getStatusText(lastSeen) {
             document.getElementById('fileInput').addEventListener('change', handleFileSelect);
             await loadMessages(true);
             updateChatStatus(username);
-            refreshInterval = setInterval(() => { loadMessages(false); updateChatStatus(username); }, 2000);
+            refreshInterval = smartPoll(() => { loadMessages(false); updateChatStatus(username); }, 2000, 15000);
         }
         
         async function updateChatStatus(username) {
@@ -3374,7 +3442,7 @@ function getStatusText(lastSeen) {
             
             document.getElementById('fileInput').addEventListener('change', handleFileSelect);
             await loadChannelMessages(true);
-            refreshInterval = setInterval(() => loadChannelMessages(false), 2000);
+            refreshInterval = smartPoll(() => loadChannelMessages(false), 2000, 15000);
         }
         
         window.showChannelFullInfo = async function() {
@@ -3439,7 +3507,6 @@ function getStatusText(lastSeen) {
                                             <div class="member-name">\${escapeHtml(m.display_name)}\${getUserBadge(m.username)}</div>
                                             <div class="member-username">@\${m.username}</div>
                                         </div>
-                                        \${isOwner && m.username !== currentChannel.owner ? \`<button class="admin-delete-btn" onclick="removeChannelMember('\${m.username}')" style="padding:5px 10px;font-size:11px;">حذف</button>\` : ''}
                                     </div>
                                 \`).join('')}
                             </div>
@@ -3836,7 +3903,7 @@ function getStatusText(lastSeen) {
             \`;
             document.getElementById('fileInput').addEventListener('change', handleFileSelect);
             await loadGroupMessages(true);
-            refreshInterval = setInterval(() => loadGroupMessages(false), 2000);
+            refreshInterval = smartPoll(() => loadGroupMessages(false), 2000, 15000);
         }
         
         window.showGroupInfo = async function() {
@@ -4370,7 +4437,7 @@ function getStatusText(lastSeen) {
                 </div>
             \`;
             loadPosts(true);
-            postRefreshInterval = setInterval(() => loadPosts(false), 8000);
+            postRefreshInterval = smartPoll(() => loadPosts(false), 8000, 30000);
         }
         
         window.updateComposeBtn = function() {
@@ -4911,7 +4978,7 @@ function timeAgo(dateString) {
         
         async function fetchAvatar(username) {
             const now = Date.now();
-            if (avatarCacheTime[username] && now - avatarCacheTime[username] < 180000) return avatarCache[username];
+            if (avatarCacheTime[username] && now - avatarCacheTime[username] < 900000) return avatarCache[username];
             try {
                 const res = await fetch('/api/get-avatar?username=' + encodeURIComponent(username));
                 const data = await res.json();
@@ -4979,7 +5046,7 @@ function timeAgo(dateString) {
                 updateLastSeen();
                 if (lastSeenInterval) clearInterval(lastSeenInterval);
                 lastSeenInterval = setInterval(updateLastSeen, 30000);
-                if (localStorage.getItem('notificationEnabled') === 'true') notificationPermission = true;
+                notificationPermission = isNotificationsEnabled();
                 showUsersList();
             } catch(e) { showMain(); }
         } else {
@@ -4988,3 +5055,4 @@ function timeAgo(dateString) {
     </script>
 </body>
 </html>`;
+}
