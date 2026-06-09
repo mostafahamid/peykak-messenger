@@ -805,6 +805,7 @@ export default {
       }
     }
     
+
     return new Response("صفحه مورد نظر یافت نشد", { status: 404 });
   }
 };
@@ -1290,6 +1291,34 @@ function getHTML() {
         .edit-save-btn, .edit-cancel-btn { width: auto; padding: 4px 10px; font-size: 11px; border-radius: 8px; }
         
         .input-area input { flex: 1; margin: 0; border-radius: 25px; }
+        .input-area textarea.message-textarea,
+        .input-area-mute textarea.message-textarea {
+            flex: 1;
+            width: 100%;
+            min-height: 44px;
+            max-height: 130px;
+            padding: 11px 14px;
+            margin: 0;
+            border: 2px solid var(--border-color);
+            border-radius: 22px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-size: 14px;
+            line-height: 1.45;
+            resize: none;
+            overflow-y: auto;
+            font-family: inherit;
+            outline: none;
+            white-space: pre-wrap;
+        }
+        .input-area textarea.message-textarea:focus,
+        .input-area-mute textarea.message-textarea:focus { border-color: #667eea; }
+        .msg-text-content,
+        .channel-message-text,
+        .post-text,
+        .comment-text,
+        .profile-bio { unicode-bidi: plaintext; }
+        .msg-text-content { white-space: pre-wrap; line-height: 1.6; word-break: break-word; }
         .input-area button { width: auto; padding: 12px 16px; border-radius: 25px; }
         .upload-btn { width: auto; padding: 8px 10px; border-radius: 25px; background: var(--message-bg); color: var(--text-secondary); border: 1px solid var(--border-color); font-size: 14px; line-height: 1; cursor: pointer; }
         #fileInput { display: none; }
@@ -1302,6 +1331,58 @@ function getHTML() {
         
         .icon-btn { background: rgba(255,255,255,0.2); border: none; padding: 0; border-radius: 50%; cursor: pointer; font-size: 10px; color: white; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
         .icon-btn:active { transform: scale(0.95); }
+        
+        /* اصلاح دکمه‌ها و آیتم‌های بخش تنظیمات */
+        .settings-header .back-btn {
+            width: auto;
+            min-width: 34px;
+            height: 34px;
+            padding: 0 11px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: none;
+            font-size: 18px;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .settings-header .back-btn:active { transform: scale(0.95); background: rgba(255,255,255,0.3); }
+        .settings-menu { display: flex; flex-direction: column; gap: 12px; }
+        .settings-item {
+            width: 100%;
+            display: block;
+            background: var(--message-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 14px;
+            cursor: pointer;
+            transition: transform 0.15s, background 0.15s, border-color 0.15s;
+            color: var(--text-primary);
+            text-align: right;
+            font-family: inherit;
+            box-shadow: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        html[dir="ltr"] .settings-item { text-align: left; }
+        button.settings-item {
+            background: var(--message-bg) !important;
+            color: var(--text-primary) !important;
+            font-size: inherit;
+            font-weight: inherit;
+        }
+        .settings-item:active { transform: scale(0.98); border-color: #667eea; }
+        .settings-item-title { font-size: 14px; font-weight: 700; color: var(--text-primary); pointer-events: none; }
+        .settings-item-desc { font-size: 12px; color: var(--text-secondary); margin-top: 4px; line-height: 1.5; pointer-events: none; }
+        .settings-item.danger-item { border-color: rgba(244,67,54,0.35); background: rgba(244,67,54,0.06); }
+        .danger-text { color: #f44336 !important; }
+        .settings-item.admin-item { border-color: rgba(229,57,53,0.35); background: rgba(229,57,53,0.06); }
+        .settings-item button { cursor: pointer; }
+        .settings-item input, .settings-item textarea { outline: none; }
+        .settings-item input:focus, .settings-item textarea:focus { border-color: #667eea !important; }
         
         /* استایل‌های جدید هدر کانال */
         .channel-header-mini {
@@ -2406,6 +2487,35 @@ function getHTML() {
             if (isNaN(utcDate)) return null;
             return new Date(utcDate.getTime() + (3.5 * 60 * 60 * 1000));
         }
+        function getNowTehran() {
+            return new Date(new Date().getTime() + (3.5 * 60 * 60 * 1000));
+        }
+        function getTextDirection(text) {
+            text = (text || '').toString();
+            const rtlMatches = text.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/g) || [];
+            const ltrMatches = text.match(/[A-Za-z]/g) || [];
+            if (rtlMatches.length === 0 && ltrMatches.length === 0) return (currentLang === 'fa' ? 'rtl' : 'ltr');
+            return rtlMatches.length >= ltrMatches.length ? 'rtl' : 'ltr';
+        }
+        window.applyAutoDirection = function(el) {
+            if (!el) return;
+            const dir = getTextDirection(el.value || el.textContent || '');
+            el.setAttribute('dir', dir);
+            el.style.textAlign = dir === 'rtl' ? 'right' : 'left';
+        }
+        window.autoGrow = function(el) {
+            if (!el) return;
+            el.style.height = 'auto';
+            el.style.height = Math.min(el.scrollHeight, 130) + 'px';
+        }
+        window.handleMessageKey = function(event, sendFnName) {
+            applyAutoDirection(event.target);
+            autoGrow(event.target);
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                if (typeof window[sendFnName] === 'function') window[sendFnName]();
+            }
+        }
         function isOnline(lastSeen) {
             if (!lastSeen) return false;
             const tehranLastSeen = toTehranTime(lastSeen);
@@ -2436,10 +2546,10 @@ function getStatusText(lastSeen) {
     if (!lastSeen) return L.statusNew;
     if (isOnline(lastSeen)) return L.statusOnline;
     
-    const date = new Date(lastSeen);
+    const date = toTehranTime(lastSeen) || new Date(lastSeen);
     if (isNaN(date)) return L.statusUnknown;
     
-    const now = new Date();
+    const now = getNowTehran();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const lastSeenDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     
@@ -2485,6 +2595,20 @@ function getStatusText(lastSeen) {
             notificationPermission = permission === 'granted';
             if (notificationPermission) localStorage.setItem('notificationEnabled', 'true');
             return notificationPermission;
+        }
+        
+        window.enableNotifications = async function() {
+            const L = t();
+            try {
+                const ok = await requestNotificationPermission();
+                if (ok) {
+                    showToast('🔔', L.notifGranted, null);
+                } else {
+                    alert(L.notifDenied);
+                }
+            } catch(e) {
+                alert(L.notifDenied);
+            }
         }
         
         let toastTimeout = null;
@@ -2661,7 +2785,6 @@ function getStatusText(lastSeen) {
         }
         
         let mutedChannels = {};
-        
         async function refreshChannelsList() {
             if (!currentUser) return;
             try {
@@ -2864,7 +2987,7 @@ function getStatusText(lastSeen) {
             const myBio = escapeHtml(currentUser.bio || '');
             const isAdmin = currentUser.username === 'mostafa';
             document.getElementById('app').innerHTML = \`
-                <div class="header">
+                <div class="header settings-header">
                     <div style="display:flex;align-items:center;gap:10px;">
                         <button class="back-btn" onclick="showUsersList()">←</button>
                         <span>⚙️ \${L.settings}</span>
@@ -2897,28 +3020,28 @@ function getStatusText(lastSeen) {
                             </div>
                             <div id="displayNameMsg" class="success" style="display:none;margin-top:6px;"></div>
                         </div>
-                        <div class="settings-item" onclick="enableNotifications()">
+                        <button type="button" class="settings-item" onclick="enableNotifications()">
                             <div class="settings-item-title">\${L.notifications}</div>
                             <div class="settings-item-desc">\${L.notificationsDesc}</div>
-                        </div>
-                        <div class="settings-item" onclick="showLangPicker()">
+                        </button>
+                        <button type="button" class="settings-item" onclick="showLangPicker()">
                             <div class="settings-item-title">\${L.language}</div>
                             <div class="settings-item-desc">\${L.languageDesc}</div>
-                        </div>
+                        </button>
                         \${isAdmin ? \`
-                        <div class="settings-item admin-item" onclick="showAdminPanel()">
+                        <button type="button" class="settings-item admin-item" onclick="showAdminPanel()">
                             <div class="settings-item-title" style="color:#e53935;">\${L.adminPanel}</div>
                             <div class="settings-item-desc">\${L.adminPanelDesc}</div>
-                        </div>
+                        </button>
                         \` : ''}
-                        <div class="settings-item" onclick="showChangePassword()">
+                        <button type="button" class="settings-item" onclick="showChangePassword()">
                             <div class="settings-item-title">\${L.changePassword}</div>
                             <div class="settings-item-desc">\${L.changePasswordDesc}</div>
-                        </div>
-                        <div class="settings-item danger-item" onclick="showDeleteAccount()">
+                        </button>
+                        <button type="button" class="settings-item danger-item" onclick="showDeleteAccount()">
                             <div class="settings-item-title danger-text">\${L.deleteAccount}</div>
                             <div class="settings-item-desc">\${L.deleteAccountDesc}</div>
-                        </div>
+                        </button>
                     </div>
                 </div>
             \`;
@@ -2981,7 +3104,7 @@ function getStatusText(lastSeen) {
         window.showAdminPanel = async function() {
             const L = t();
             document.getElementById('app').innerHTML = \`
-                <div class="header" style="background:linear-gradient(135deg,#e53935,#b71c1c);">
+                <div class="header settings-header" style="background:linear-gradient(135deg,#e53935,#b71c1c);">
                     <div style="display:flex;align-items:center;gap:10px;">
                         <button class="back-btn" onclick="showSettings()">←</button>
                         <span style="font-weight:bold;">\${L.adminPanel}</span>
@@ -3056,7 +3179,7 @@ function getStatusText(lastSeen) {
         window.showChangePassword = function() {
             const L = t();
             document.getElementById('app').innerHTML = \`
-                <div class="header">
+                <div class="header settings-header">
                     <div style="display:flex;align-items:center;gap:10px;">
                         <button class="back-btn" onclick="showSettings()">←</button>
                         <span>\${L.changePassword}</span>
@@ -3094,7 +3217,7 @@ function getStatusText(lastSeen) {
         window.showDeleteAccount = function() {
             const L = t();
             document.getElementById('app').innerHTML = \`
-                <div class="header">
+                <div class="header settings-header">
                     <div style="display:flex;align-items:center;gap:10px;">
                         <button class="back-btn" onclick="showSettings()">←</button>
                         <span>\${L.deleteAccount}</span>
@@ -3158,7 +3281,7 @@ function getStatusText(lastSeen) {
                 <div id="imagePreviewContainer"></div>
                 <div class="input-area">
                     <button class="upload-btn" onclick="document.getElementById('fileInput').click()">🖼️</button>
-                    <input type="text" id="messageInput" placeholder="\${t().messagePlaceholder}" onkeypress="if(event.key==='Enter') sendMessage()">
+                    <textarea id="messageInput" class="message-textarea" rows="1" dir="auto" placeholder="\${t().messagePlaceholder}" oninput="autoGrow(this);applyAutoDirection(this)" onkeydown="handleMessageKey(event,'sendMessage')"></textarea>
                     <button onclick="sendMessage()">📤</button>
                 </div>
             \`;
@@ -3237,13 +3360,13 @@ function getStatusText(lastSeen) {
                     <button class="mute-input-btn \${isMuted ? 'muted' : ''}" onclick="toggleChannelMute('\${channelName}')">
                         \${isMuted ? '🔊 ' + t().unmute : '🔇 ' + t().mute}
                     </button>
-                    <input type="text" id="messageInput" placeholder="\${placeholderText}" disabled style="opacity:0.6;">
+                    <textarea id="messageInput" class="message-textarea" rows="1" dir="auto" placeholder="\${placeholderText}" disabled style="opacity:0.6;"></textarea>
                     <button disabled style="opacity:0.4;">📤</button>
                 </div>
                 \` : \`
                 <div class="input-area">
                     <button class="upload-btn" onclick="document.getElementById('fileInput').click()">🖼️</button>
-                    <input type="text" id="messageInput" placeholder="\${placeholderText}" onkeypress="if(event.key==='Enter') sendChannelMessage()">
+                    <textarea id="messageInput" class="message-textarea" rows="1" dir="auto" placeholder="\${placeholderText}" oninput="autoGrow(this);applyAutoDirection(this)" onkeydown="handleMessageKey(event,'sendChannelMessage')"></textarea>
                     <button onclick="sendChannelMessage()">📤</button>
                 </div>
                 \`}
@@ -3312,10 +3435,11 @@ function getStatusText(lastSeen) {
                                 \${members.map(m => \`
                                     <div class="member-item">
                                         \${avatarHtml(m.avatar || null, m.display_name, 'msg')}
-                                        <div>
+                                        <div style="flex:1;">
                                             <div class="member-name">\${escapeHtml(m.display_name)}\${getUserBadge(m.username)}</div>
                                             <div class="member-username">@\${m.username}</div>
                                         </div>
+                                        \${isOwner && m.username !== currentChannel.owner ? \`<button class="admin-delete-btn" onclick="removeChannelMember('\${m.username}')" style="padding:5px 10px;font-size:11px;">حذف</button>\` : ''}
                                     </div>
                                 \`).join('')}
                             </div>
@@ -3446,9 +3570,8 @@ function getStatusText(lastSeen) {
             let lastDate = '', messagesHtml = '';
             const locale = currentLang === 'fa' ? 'fa-IR' : 'en-US';
             messages.filter(m => !m.is_deleted).forEach(msg => {
-                const utcDate = new Date(msg.created_at);
-                const tehranTime = new Date(utcDate.getTime() + (3.5 * 60 * 60 * 1000));
-                const todayTehran = new Date(new Date().getTime() + (3.5 * 60 * 60 * 1000));
+                const tehranTime = toTehranTime(msg.created_at) || new Date(msg.created_at);
+                const todayTehran = getNowTehran();
                 const yesterday = new Date(todayTehran); yesterday.setDate(yesterday.getDate() - 1);
                 const dateStr = tehranTime.toLocaleDateString(locale);
                 if (dateStr !== lastDate) {
@@ -3472,7 +3595,7 @@ function getStatusText(lastSeen) {
                 let imageHtml = '';
                 if (msg.image_data) imageHtml = '<div class="msg-image-wrap" data-src="' + msg.image_data + '"><img class="msg-image-blur" src="' + msg.image_data + '" alt="img"><div class="msg-image-overlay" onclick="revealImage(this)"><span>👁 مشاهده</span></div></div>';
                 const editedLabel = msg.is_edited ? \`<span class="edited-label">(\${L.edited})</span>\` : '';
-                const textHtml = msg.text ? \`<div class="channel-message-text">\${escapeHtml(msg.text)}</div>\` : '';
+                const textHtml = msg.text ? \`<div class="channel-message-text" dir="\${getTextDirection(msg.text)}">\${escapeHtml(msg.text)}</div>\` : '';
                 const viewsCount = msg.views_count || 0;
                 messagesHtml += '<div class="message ' + (isMe ? 'sent' : 'received') + '" id="msg-' + msg.id + '" oncontextmenu="showChannelMsgCtx(event,' + msg.id + ',' + isMe + ',' + !!msg.text + ')" ontouchstart="startLongPress(event,' + msg.id + ',' + isMe + ',' + !!msg.text + ')" ontouchend="cancelLongPress()" ontouchmove="cancelLongPress()">' + 
                     replyHtml + textHtml + imageHtml +
@@ -3483,7 +3606,7 @@ function getStatusText(lastSeen) {
             if (wasScrolledToBottom) container.scrollTop = container.scrollHeight;
         }
         
-        async function sendChannelMessage() {
+        window.sendChannelMessage = async function() {
             const input = document.getElementById('messageInput');
             let text = input ? input.value.trim() : '';
             if (!text && !pendingImage) return;
@@ -3707,7 +3830,7 @@ function getStatusText(lastSeen) {
                 <div id="imagePreviewContainer"></div>
                 <div class="input-area">
                     <button class="upload-btn" onclick="document.getElementById('fileInput').click()">🖼️</button>
-                    <input type="text" id="messageInput" placeholder="\${t().groupMessagePlaceholder}" onkeypress="if(event.key==='Enter') sendGroupMessage()">
+                    <textarea id="messageInput" class="message-textarea" rows="1" dir="auto" placeholder="\${t().groupMessagePlaceholder}" oninput="autoGrow(this);applyAutoDirection(this)" onkeydown="handleMessageKey(event,'sendGroupMessage')"></textarea>
                     <button onclick="sendGroupMessage()">📤</button>
                 </div>
             \`;
@@ -3820,9 +3943,8 @@ function getStatusText(lastSeen) {
             let lastDate = '', messagesHtml = '';
             const locale = currentLang === 'fa' ? 'fa-IR' : 'en-US';
             messages.forEach(msg => {
-                const utcDate = new Date(msg.created_at);
-                const tehranTime = new Date(utcDate.getTime() + (3.5 * 60 * 60 * 1000));
-                const todayTehran = new Date(new Date().getTime() + (3.5 * 60 * 60 * 1000));
+                const tehranTime = toTehranTime(msg.created_at) || new Date(msg.created_at);
+                const todayTehran = getNowTehran();
                 const yesterday = new Date(todayTehran); yesterday.setDate(yesterday.getDate() - 1);
                 const dateStr = tehranTime.toLocaleDateString(locale);
                 if (dateStr !== lastDate) {
@@ -3845,7 +3967,7 @@ function getStatusText(lastSeen) {
                 let imageHtml = '';
                 if (msg.image_data) imageHtml = '<div class="msg-image-wrap" data-src="' + msg.image_data + '"><img class="msg-image-blur" src="' + msg.image_data + '" alt="img"><div class="msg-image-overlay" onclick="revealImage(this)"><span>👁 مشاهده</span></div></div>';
                 const editedLabel = msg.is_edited ? \`<span class="edited-label">(\${L.edited})</span>\` : '';
-                const textHtml = msg.text ? '<div>' + escapeHtml(msg.text) + editedLabel + '</div>' : (editedLabel ? '<div>' + editedLabel + '</div>' : '');
+                const textHtml = msg.text ? '<div class="msg-text-content" dir="' + getTextDirection(msg.text) + '">' + escapeHtml(msg.text) + editedLabel + '</div>' : (editedLabel ? '<div>' + editedLabel + '</div>' : '');
                 let actionsHtml = '<div class="message-actions"><button class="action-btn" onclick="startGroupReply(' + msg.id + ')">↩️</button>';
                 if (isMe) {
                     if (msg.text) actionsHtml += '<button class="action-btn" onclick="startGroupEdit(' + msg.id + ')">✏️</button>';
@@ -3863,7 +3985,7 @@ function getStatusText(lastSeen) {
             if (wasScrolledToBottom) container.scrollTop = container.scrollHeight;
         }
         
-        async function sendGroupMessage() {
+        window.sendGroupMessage = async function() {
             const input = document.getElementById('messageInput');
             const text = input ? input.value.trim() : '';
             if (!text && !pendingImage) return;
@@ -4036,9 +4158,8 @@ function getStatusText(lastSeen) {
             messages.forEach(m => msgMap[m.id] = m);
             let lastDate = '', messagesHtml = '';
             messages.forEach(msg => {
-                const utcDate = new Date(msg.created_at);
-                const tehranTime = new Date(utcDate.getTime() + (3.5 * 60 * 60 * 1000));
-                const todayTehran = new Date(new Date().getTime() + (3.5 * 60 * 60 * 1000));
+                const tehranTime = toTehranTime(msg.created_at) || new Date(msg.created_at);
+                const todayTehran = getNowTehran();
                 const yesterday = new Date(todayTehran); yesterday.setDate(yesterday.getDate() - 1);
                 const dateStr = tehranTime.toLocaleDateString(locale);
                 if (dateStr !== lastDate) {
@@ -4065,7 +4186,7 @@ function getStatusText(lastSeen) {
                 let imageHtml = '';
                 if (msg.image_data) imageHtml = '<div class="msg-image-wrap" data-src="' + msg.image_data + '"><img class="msg-image-blur" src="' + msg.image_data + '" alt="img"><div class="msg-image-overlay" onclick="revealImage(this)"><span>👁 مشاهده</span></div></div>';
                 const editedLabel = msg.is_edited ? \`<span class="edited-label">(\${L.edited})</span>\` : '';
-                const textHtml = msg.text ? '<div>' + escapeHtml(msg.text) + editedLabel + '</div>' : (editedLabel ? '<div>' + editedLabel + '</div>' : '');
+                const textHtml = msg.text ? '<div class="msg-text-content" dir="' + getTextDirection(msg.text) + '">' + escapeHtml(msg.text) + editedLabel + '</div>' : (editedLabel ? '<div>' + editedLabel + '</div>' : '');
                 let actionsHtml = '<div class="message-actions"><button class="action-btn" onclick="startReply(' + msg.id + ')">↩️</button>';
                 if (isMe) {
                     if (msg.text) actionsHtml += '<button class="action-btn" onclick="startEdit(' + msg.id + ')">✏️</button>';
@@ -4088,7 +4209,7 @@ function getStatusText(lastSeen) {
             if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.outline = '2px solid #667eea'; setTimeout(() => { el.style.outline = ''; }, 1500); }
         }
         
-        async function sendMessage() {
+        window.sendMessage = async function() {
             const input = document.getElementById('messageInput');
             const text = input ? input.value.trim() : '';
             if (!text && !pendingImage) return;
@@ -4204,7 +4325,7 @@ function getStatusText(lastSeen) {
             const msg = allMessages.find(m => m.id === msgId);
             if (!msg) return;
             const input = document.getElementById('messageInput');
-            if (input && msg.text) { input.value = msg.text; input.focus(); }
+            if (input && msg.text) { input.value = msg.text; applyAutoDirection(input); autoGrow(input); input.focus(); }
             if (msg.image_data) { pendingImage = msg.image_data; renderImagePreview(); }
         }
         
@@ -4461,18 +4582,21 @@ function getStatusText(lastSeen) {
     
 function timeAgo(dateString) {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    const now = new Date();
+    const L = t();
+    const date = toTehranTime(dateString) || new Date(dateString);
+    const now = getNowTehran();
     const diff = Math.floor((now - date) / 1000);
     
-    if (diff < 60) return 'همین الان';
-    if (diff < 3600) return Math.floor(diff / 60) + ' دقیقه پیش';
-    if (diff < 86400) return Math.floor(diff / 3600) + ' ساعت پیش';
-    if (diff < 604800) return Math.floor(diff / 86400) + ' روز پیش';
+    if (diff < 60) return L.justNow;
+    if (diff < 3600) return L.minutesAgo(Math.floor(diff / 60));
+    if (diff < 86400) return L.hoursAgo(Math.floor(diff / 3600));
+    if (diff < 604800) return L.daysAgo(Math.floor(diff / 86400));
     
-    // تبدیل به شمسی
-    const jalaali = toJalaali(date.getFullYear(), date.getMonth() + 1, date.getDate());
-    return jalaali.jy + '/' + jalaali.jm + '/' + jalaali.jd;
+    if (currentLang === 'fa') {
+        const jalaali = toJalaali(date.getFullYear(), date.getMonth() + 1, date.getDate());
+        return jalaali.jy + '/' + String(jalaali.jm).padStart(2, '0') + '/' + String(jalaali.jd).padStart(2, '0');
+    }
+    return date.toLocaleDateString('en-US');
 }
         
         function formatCount(n) {
@@ -4517,7 +4641,7 @@ function timeAgo(dateString) {
                         </div>
                         \${deleteBtn}
                     </div>
-                    \${post.text ? \`<div class="post-text">\${escapeHtml(post.text)}</div>\` : ''}
+                    \${post.text ? \`<div class="post-text" dir="\${getTextDirection(post.text)}">\${escapeHtml(post.text)}</div>\` : ''}
                     \${imgHtml}
                     <div class="post-actions">
                         <button class="post-action-btn" onclick="toggleComments(\${post.id})">
@@ -4628,7 +4752,7 @@ function timeAgo(dateString) {
                             \${avatarHtml(avatarCache[c.sender] || null, c.sender, 'msg')}
                             <div class="comment-body">
                                 <div class="comment-sender">\${escapeHtml(c.sender)}\${getUserBadge(c.sender)}</div>
-                                <div class="comment-text">\${escapeHtml(c.text)}</div>
+                                <div class="comment-text" dir="\${getTextDirection(c.text)}">\${escapeHtml(c.text)}</div>
                                 <div class="comment-time">\${timeAgo(c.created_at)}</div>
                             </div>
                             \${c.sender === currentUser.username ? \`<button class="comment-del-btn" onclick="deleteComment(\${c.id}, \${postId})">🗑️</button>\` : ''}
@@ -4760,7 +4884,7 @@ function timeAgo(dateString) {
                     <div class="profile-name">\${escapeHtml(displayName)}\${getUserBadge(username)}</div>
                     <div class="profile-username">@\${escapeHtml(username)}</div>
                     <div class="profile-status">\${statusReal}</div>
-                    \${bio ? '<div class="profile-bio">' + escapeHtml(bio) + '</div>' : ''}
+                    \${bio ? '<div class="profile-bio" dir="' + getTextDirection(bio) + '">' + escapeHtml(bio) + '</div>' : ''}
                 </div>
             \`;
             modal.onclick = () => modal.remove();
@@ -4864,4 +4988,3 @@ function timeAgo(dateString) {
     </script>
 </body>
 </html>`;
-}
